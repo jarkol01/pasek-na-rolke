@@ -1,0 +1,226 @@
+<!doctype html><html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Pasek na rolkę</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800&display=swap">
+<style>
+/* Layout: two columns (controls | 9:16 preview), stacked on phones with preview first */
+:root{
+  --bg:#f3f4f7; --panel:#ffffff; --fg:#16181d; --muted:#5d6370; --line:#dde0e6; --accent:#c8102e;
+  --f:"Archivo",system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#111317;--panel:#1a1d23;--fg:#eceef2;--muted:#9aa1ad;--line:#2c3038;--accent:#ff3b4f;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#111317;--panel:#1a1d23;--fg:#eceef2;--muted:#9aa1ad;--line:#2c3038;--accent:#ff3b4f;color-scheme:dark}
+body{background:var(--bg);color:var(--fg);font-family:var(--f);font-size:16px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px}
+.wrap{max-width:980px;margin:0 auto;display:grid;grid-template-columns:1fr 340px;gap:28px;align-items:start}
+h1{font-size:1.6rem;font-weight:800;margin:0 0 4px;text-wrap:balance}
+.lead{color:var(--muted);margin:0 0 20px}
+.panel{display:grid;gap:16px;min-width:0}
+label{display:grid;gap:6px;font-weight:700;font-size:.9rem}
+input[type=text],select{font:inherit;font-weight:500;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--fg);width:100%;box-sizing:border-box}
+input[type=range]{width:100%;accent-color:var(--accent)}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.hint{font-weight:500;color:var(--muted);font-size:.8rem}
+.file{border:2px dashed var(--line);border-radius:12px;padding:18px;text-align:center;background:var(--panel);cursor:pointer;font-weight:700}
+.file input{display:none}
+button{font:inherit;font-weight:800;font-size:1.05rem;padding:15px;border:0;border-radius:12px;background:var(--accent);color:#fff;cursor:pointer}
+button:disabled{opacity:.5;cursor:default}
+button:focus-visible,.file:focus-within,input:focus-visible,select:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.stage{position:sticky;top:16px;display:grid;gap:10px}
+canvas{width:100%;max-width:100%;aspect-ratio:9/16;border-radius:14px;background:#000;display:block}
+.status{font-size:.9rem;color:var(--muted);min-height:1.3em}
+.bar{height:6px;background:var(--line);border-radius:3px;overflow:hidden}
+.bar i{display:block;height:100%;width:0;background:var(--accent)}
+.colors{display:flex;gap:8px;flex-wrap:wrap}
+.colors button{width:38px;height:38px;padding:0;border-radius:50%;border:3px solid transparent}
+.colors button[aria-pressed=true]{border-color:var(--fg)}
+@media (max-width:760px){.wrap{grid-template-columns:1fr}.stage{position:static;order:-1;max-width:320px;margin:0 auto;width:100%}}
+</style>
+
+</head><body>
+<div class="wrap">
+  <div class="panel">
+    <div><h1>Pasek na rolkę</h1><p class="lead">Wgraj nagranie, wpisz tekst, pobierz gotowy film z paskiem jak w telewizji.</p></div>
+    <label class="file" id="drop">📱 Wybierz film z telefonu<input type="file" id="file" accept="video/*"><span class="hint" id="fname">Pionowy film 9:16 wygląda najlepiej</span></label>
+    <label>Etykieta (czerwone pole)<input type="text" id="tag" value="PILNE" maxlength="20"></label>
+    <label>Główny tekst<input type="text" id="head" value="Kawa w końcu wypita przed 9:00"></label>
+    <label>Druga linijka <span class="hint">(opcjonalnie; długi tekst sam się przewija)</span><input type="text" id="sub" value="Świadkowie nie dowierzają"></label>
+    <div style="display:grid;gap:8px"><b style="font-size:.9rem">Kolor etykiety</b><div class="colors" id="colors"></div>
+      <div style="display:flex;gap:10px;align-items:center">
+        <label style="display:flex;gap:8px;align-items:center;font-weight:500">Własny<input type="color" id="pick" style="width:48px;height:42px;border:1px solid var(--line);border-radius:10px;background:var(--panel);padding:2px"></label>
+        <input type="text" id="hex" placeholder="#C8102E" maxlength="7" aria-label="Kod koloru HEX" style="max-width:130px;font-family:ui-monospace,monospace">
+      </div></div>
+    <label>Wysokość paska <span class="hint">Nie za nisko — dół zasłania opis na Instagramie</span><input type="range" id="pos" min="40" max="85" value="56"></label>
+    <label style="display:flex;gap:10px;align-items:center"><input type="checkbox" id="ui" checked style="width:22px;height:22px;accent-color:var(--accent)">Pokaż układ Instagrama na podglądzie <span class="hint">(nie trafia do filmu)</span></label>
+    <div class="row">
+      <label>Pojawia się po (s)<input type="text" id="start" value="0.5" inputmode="decimal"></label>
+      <label>Znika po (s)<input type="text" id="end" value="" inputmode="decimal" placeholder="do końca"></label>
+    </div>
+    <button id="go" disabled>Wgraj film, żeby zapisać</button>
+    <div class="bar"><i id="prog"></i></div>
+    <div class="status" id="status"></div>
+  </div>
+  <div class="stage"><canvas id="cv" width="1080" height="1920"></canvas><span class="hint">Podgląd. Kliknij, żeby odtworzyć/zatrzymać.</span></div>
+</div>
+<!-- not `hidden`: iOS Safari may stop decoding frames of a display:none video -->
+<video id="v" playsinline style="position:fixed;left:0;top:0;width:2px;height:2px;opacity:0;pointer-events:none"></video>
+
+<script>
+const $=id=>document.getElementById(id), cv=$('cv'), ctx=cv.getContext('2d'), v=$('v');
+const COLORS=['#c8102e','#e63946','#ff6b00','#f2a900','#ffd60a','#7cb518','#2a9d8f','#00b4d8','#0057b8','#1d3557','#6a4c93','#9d4edd',
+  '#e4007c','#ff8fab','#8d5524','#6c757d','#111111','#ffffff'];
+const HEX=/^#[0-9a-f]{6}$/i;
+let color=COLORS[0], loaded=false, recording=false, audio=null;
+
+function setColor(c){
+  color=c.toLowerCase();$('pick').value=color;if(document.activeElement!==$('hex'))$('hex').value=color.toUpperCase();
+  [...$('colors').children].forEach((x,i)=>x.setAttribute('aria-pressed',COLORS[i]===color));store();
+}
+const ink=c=>{const n=parseInt(c.slice(1),16),r=n>>16,g=n>>8&255,b=n&255;return (r*299+g*587+b*114)/1000>150?'#111':'#fff'};
+
+COLORS.forEach(c=>{const b=document.createElement('button');b.type='button';b.style.background=c;b.style.boxShadow='inset 0 0 0 1px rgba(0,0,0,.15)';
+  b.setAttribute('aria-label','Kolor '+c);b.onclick=()=>setColor(c);$('colors').append(b)});
+$('pick').oninput=e=>setColor(e.target.value);
+$('hex').oninput=e=>{let v=e.target.value.trim();if(v&&v[0]!=='#')v='#'+v;if(HEX.test(v))setColor(v)};
+
+// remember settings in this browser
+const KEYS=['tag','head','sub','pos','start','end','ui'];
+function store(){try{localStorage.setItem('paski',JSON.stringify({color,...Object.fromEntries(KEYS.map(k=>[k,$(k).type==='checkbox'?$(k).checked:$(k).value]))}))}catch(e){}}
+try{const s=JSON.parse(localStorage.getItem('paski')||'null');
+  if(s){KEYS.forEach(k=>{if(k in s)$(k).type==='checkbox'?$(k).checked=s[k]:$(k).value=s[k]});
+    if(HEX.test(s.color||''))color=s.color}}catch(e){}
+setColor(color);
+document.addEventListener('input',store);document.addEventListener('change',store);
+
+const num=(id,d)=>{const n=parseFloat($(id).value.replace(',','.'));return isNaN(n)?d:n};
+
+function fit(text,maxW,size,weight){ // shrink font until text fits one line
+  do{ctx.font=`${weight} ${size}px Archivo, system-ui, sans-serif`;size-=2}while(ctx.measureText(text).width>maxW&&size>14);
+  return size+2;
+}
+
+function drawBar(t){
+  const W=cv.width,H=cv.height,u=W/1080, start=num('start',0), end=num('end',Infinity);
+  if(t<start||t>end) return;
+  const k=Math.min(1,(t-start)/0.4), e=1-Math.pow(1-k,3);           // slide-in
+  const out=end===Infinity?1:Math.min(1,(end-t)/0.3);               // fade-out
+  ctx.save(); ctx.globalAlpha=out;
+  const y=H*$('pos').value/100, x0=40*u, w=W-80*u, slide=(1-e)*-W;
+  const tag=$('tag').value.trim().toUpperCase(), head=$('head').value.trim(), sub=$('sub').value.trim();
+  const hH=96*u, sH=sub?62*u:0;
+  ctx.translate(slide,0);
+  // headline strip
+  ctx.fillStyle='#fff'; ctx.fillRect(x0,y,w,hH);
+  let tw=0;
+  if(tag){ctx.font=`800 ${46*u}px Archivo, system-ui, sans-serif`;tw=ctx.measureText(tag).width+48*u;
+    ctx.fillStyle=color;ctx.fillRect(x0,y,tw,hH);ctx.fillStyle=ink(color);ctx.textBaseline='middle';ctx.fillText(tag,x0+24*u,y+hH/2+2*u)}
+  ctx.fillStyle='#111';ctx.textBaseline='middle';
+  fit(head,w-tw-48*u,52*u,800);ctx.fillText(head,x0+tw+24*u,y+hH/2+2*u);
+  if(sub){ctx.fillStyle='rgba(15,18,24,.92)';ctx.fillRect(x0,y+hH,w,sH);
+    const ty=y+hH+sH/2+2*u, inner=w-48*u;
+    ctx.font=`500 ${36*u}px Archivo, system-ui, sans-serif`;
+    const sw=ctx.measureText(sub).width;
+    ctx.fillStyle='#fff';
+    if(sw<=inner) ctx.fillText(sub,x0+24*u,ty);
+    else{ // ticker: text ■ text ■ … scrolling left, timed by video time so the recording matches the preview
+      const gap=90*u, cycle=sw+gap, off=((t-start)*140*u)%cycle;
+      ctx.save();ctx.beginPath();ctx.rect(x0+12*u,y+hH,w-24*u,sH);ctx.clip();
+      for(let x=x0+24*u-off;x<x0+w;x+=cycle){
+        ctx.fillStyle='#fff';ctx.fillText(sub,x,ty);
+        ctx.fillStyle=color;const s=16*u;ctx.fillRect(x+sw+gap/2-s/2,ty-s/2-2*u,s,s);
+      }
+      ctx.restore();
+    }
+  }
+  ctx.restore();
+}
+
+// Zones from Meta's Reels ads guide: keep 14% top, 35% bottom, 6% each side clear.
+// Icon/caption placement inside those zones is schematic — Meta doesn't publish exact positions.
+function drawUI(){
+  const W=cv.width,H=cv.height,u=W/1080,top=H*.14,bot=H*.35,side=W*.06;
+  ctx.save();
+  ctx.fillStyle='rgba(255,40,60,.16)';
+  ctx.fillRect(0,0,W,top);ctx.fillRect(0,H-bot,W,bot);ctx.fillRect(0,top,side,H-top-bot);ctx.fillRect(W-side,top,side,H-top-bot);
+  ctx.setLineDash([14*u,10*u]);ctx.strokeStyle='rgba(255,255,255,.7)';ctx.lineWidth=3*u;ctx.strokeRect(side,top,W-2*side,H-top-bot);ctx.setLineDash([]);
+  const sh=t=>{ctx.shadowColor='rgba(0,0,0,.6)';ctx.shadowBlur=8*u};sh();
+  ctx.fillStyle='#fff';ctx.textBaseline='middle';
+  ctx.font=`800 ${52*u}px Archivo, system-ui`;ctx.fillText('Rolki',44*u,top*.45);
+  // right action column
+  const cx=W-80*u;let y=H-bot*.95;
+  for(const [g,n] of [['♡','1,2 tys.'],['💬','48'],['➤','12'],['⋯','']]){
+    ctx.textAlign='center';ctx.font=`${64*u}px system-ui`;ctx.fillText(g,cx,y);
+    if(n){ctx.font=`600 ${28*u}px Archivo, system-ui`;ctx.fillText(n,cx,y+52*u)}
+    y+=150*u;
+  }
+  ctx.fillStyle='rgba(255,255,255,.85)';ctx.fillRect(cx-34*u,H-120*u,68*u,68*u);
+  // bottom-left profile + caption
+  ctx.textAlign='left';const by=H-bot*.42;
+  ctx.fillStyle='#ccc';ctx.beginPath();ctx.arc(80*u,by,36*u,0,7);ctx.fill();
+  ctx.fillStyle='#fff';ctx.font=`700 ${34*u}px Archivo, system-ui`;ctx.fillText('twoja_nazwa',134*u,by);
+  ctx.strokeStyle='#fff';ctx.lineWidth=3*u;ctx.strokeRect(370*u,by-26*u,150*u,52*u);ctx.font=`700 ${28*u}px Archivo, system-ui`;ctx.fillText('Obserwuj',384*u,by);
+  ctx.font=`500 ${32*u}px Archivo, system-ui`;ctx.fillText('Opis rolki… więcej',44*u,by+80*u);
+  ctx.fillText('♫ Oryginalny dźwięk',44*u,by+140*u);
+  ctx.restore();
+}
+
+function frame(){
+  if(loaded){ctx.drawImage(v,0,0,cv.width,cv.height); drawBar(v.currentTime)}
+  else{const g=ctx.createLinearGradient(0,0,0,cv.height);g.addColorStop(0,'#6b7d99');g.addColorStop(1,'#2a3140');ctx.fillStyle=g;ctx.fillRect(0,0,cv.width,cv.height);
+    ctx.fillStyle='rgba(255,255,255,.6)';ctx.font='600 44px Archivo, system-ui';ctx.textAlign='center';ctx.fillText('Tu będzie Twój film',cv.width/2,cv.height*.4);ctx.textAlign='left';
+    drawBar(performance.now()/1000)}
+  if($('ui').checked&&!recording) drawUI();
+  if(recording&&v.duration) $('prog').style.width=(v.currentTime/v.duration*100)+'%';
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+$('file').onchange=e=>{const f=e.target.files[0]; if(!f) return;
+  $('fname').textContent=f.name; v.src=URL.createObjectURL(f); v.load();};
+v.onloadedmetadata=()=>{cv.width=v.videoWidth;cv.height=v.videoHeight;cv.style.aspectRatio=`${v.videoWidth}/${v.videoHeight}`;
+  loaded=true;v.currentTime=0;$('go').disabled=false;$('go').textContent='Zapisz film z paskiem';$('status').textContent=`Film: ${v.duration.toFixed(1)} s`;};
+cv.onclick=()=>{if(!loaded||recording)return;ensureAudio();v.paused?v.play():v.pause()};
+
+function ensureAudio(){ // one MediaElementSource per element; also routes sound to speakers
+  if(audio) return audio;
+  try{const ac=new AudioContext(),src=ac.createMediaElementSource(v),dest=ac.createMediaStreamDestination();
+    src.connect(dest);src.connect(ac.destination);audio={ac,dest};}catch(e){audio={dest:null}}
+  return audio;
+}
+
+function pickMime(){
+  return ['video/mp4;codecs=avc1.640028,mp4a.40.2','video/mp4;codecs=avc1,mp4a','video/mp4','video/webm;codecs=vp9,opus','video/webm']
+    .find(m=>window.MediaRecorder&&MediaRecorder.isTypeSupported(m))||'';
+}
+
+$('go').onclick=async()=>{
+  const mime=pickMime(); if(!window.MediaRecorder){$('status').textContent='Ta przeglądarka nie umie nagrywać. Spróbuj w Chrome albo Safari.';return}
+  const a=ensureAudio(); if(a.ac) a.ac.resume();
+  try{wake=await navigator.wakeLock?.request('screen')}catch(e){wake=null}
+  const stream=cv.captureStream(30); if(a.dest) a.dest.stream.getAudioTracks().forEach(t=>stream.addTrack(t));
+  const rec=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:10e6}), chunks=[];
+  rec.ondataavailable=e=>e.data.size&&chunks.push(e.data);
+  rec.onstop=()=>save(new Blob(chunks,{type:mime}),mime.includes('mp4')?'mp4':'webm');
+  recording=true;$('go').disabled=true;$('go').textContent='Nagrywam… nie zamykaj strony';
+  $('status').textContent='Film odtwarza się raz w całości. Nie blokuj telefonu i nie przełączaj aplikacji.';
+  v.pause();v.currentTime=0;
+  v.onended=()=>{rec.stop();v.onended=null};
+  rec.start(500);
+  try{await v.play()}catch(e){rec.onstop=null;rec.stop();recording=false;wake?.release();$('go').disabled=false;$('go').textContent='Zapisz film z paskiem';$('status').textContent='Nie udało się odtworzyć filmu. Kliknij przycisk jeszcze raz.';return}
+  document.onvisibilitychange=()=>{if(document.hidden&&recording){rec.onstop=null;rec.stop();v.pause();recording=false;$('go').disabled=false;$('go').textContent='Zapisz film z paskiem';$('status').textContent='Przerwano, bo strona zeszła w tło. Zacznij od nowa i zostań na tej stronie do końca.'}};
+};
+
+let wake=null;
+async function save(blob,ext){
+  recording=false;try{wake?.release()}catch(e){}$('prog').style.width='100%';$('go').disabled=false;$('go').textContent='Zapisz film z paskiem';
+  const name='rolka-z-paskiem.'+ext;
+  const file=new File([blob],name,{type:blob.type});
+  try{
+    if(navigator.canShare?.({files:[file]})){await navigator.share({files:[file]});$('status').textContent='Gotowe! Wybierz „Zapisz wideo”, a potem wrzuć film na Instagram.';}
+    else{const l=document.createElement('a');l.href=URL.createObjectURL(file);l.download=name;document.body.append(l);l.click();l.remove();$('status').textContent='Gotowe! Film jest w pobranych plikach.';}
+  }catch(e){$('status').textContent=e.name==='AbortError'?'Zapis anulowany. Kliknij przycisk, żeby spróbować jeszcze raz.':'Nie udało się zapisać pliku ('+e.message+').';}
+  if(ext==='webm') $('status').textContent+=' Uwaga: ta przeglądarka zapisała format WEBM — jeśli Instagram go nie przyjmie, użyj Safari lub nowego Chrome.';
+}
+</script>
+
+</body></html>
